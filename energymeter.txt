@@ -1,0 +1,103 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from energy_meter import EnergyMeter
+
+# Define the ResNet Model for FashionMNIST
+class ResNetFashionMNIST(nn.Module):
+    def __init__(self):
+        super(ResNetFashionMNIST, self).__init__()
+        self.resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=False)
+        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # Adjust for 1-channel grayscale
+        self.resnet.fc = nn.Linear(512, 10)  # FashionMNIST has 10 classes
+
+    def forward(self, x):
+        return self.resnet(x)
+
+# Set up transforms for FashionMNIST (grayscale images)
+transform = transforms.Compose([
+    transforms.Resize(224),  # Resize to match ResNet's expected input size
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))  # Normalize for grayscale images
+])
+
+# Load the FashionMNIST dataset
+trainset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True)
+
+testset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False)
+
+# Initialize model, optimizer, and loss function
+model = ResNetFashionMNIST().cuda()
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+criterion = nn.CrossEntropyLoss()
+
+# Set up EnergyMeter for tracking energy consumption during training
+meter_train = EnergyMeter(disk_avg_speed=1600*1e6, disk_active_power=6, disk_idle_power=1.42, label="Training", include_idle=False)
+
+# Begin energy tracking for training
+meter_train.begin()
+
+# Training loop
+for epoch in range(10):
+    running_loss = 0.0
+    for i, data in enumerate(trainloader, 0):
+        inputs, labels = data
+        inputs, labels = inputs.cuda(), labels.cuda()
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        if i % 100 == 99:
+            print(f'[Epoch: {epoch + 1}, Batch: {i + 1}] loss: {running_loss / 100:.3f}')
+            running_loss = 0.0
+
+# End energy tracking for training
+meter_train.end()
+
+# Plot the energy consumption for training
+meter_train.plot_total_jules_per_component()
+
+# Set up EnergyMeter for tracking energy consumption during inference
+meter_inference = EnergyMeter(disk_avg_speed=1600*1e6, disk_active_power=6, disk_idle_power=1.42, label="Inference", include_idle=False)
+
+# Begin energy tracking for inference
+meter_inference.begin()
+
+# Evaluate the model and collect predictions
+y_true = []
+y_pred = []
+
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        images, labels = images.cuda(), labels.cuda()
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
+        y_true.extend(labels.cpu().numpy())  # Collect true labels
+        y_pred.extend(predicted.cpu().numpy())  # Collect predicted labels
+
+# End energy tracking for inference
+meter_inference.end()
+
+# Plot the energy consumption for inference
+meter_inference.plot_total_jules_per_component()
+
+# Calculate metrics
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
