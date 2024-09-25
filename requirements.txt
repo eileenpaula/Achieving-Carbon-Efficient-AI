@@ -1,0 +1,7 @@
+torch
+torchvision
+codecarbon
+carbontracker
+energymeter
+scikit-learn
+openpyxl

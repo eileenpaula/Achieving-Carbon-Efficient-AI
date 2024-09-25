@@ -4,43 +4,35 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torchvision.models as models
 import torch.optim as optim
-from carbontracker.tracker import CarbonTracker
-from carbontracker import parser
+from codecarbon import EmissionsTracker
 import time
 from openpyxl import load_workbook
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-transform = transforms.Compose([transforms.Resize(224), transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-trainset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
-testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
-class DenseNetMNIST(nn.Module):
+class DenseNetCIFAR10(nn.Module):
     def __init__(self):
-        super(DenseNetMNIST, self).__init__()
+        super(DenseNetCIFAR10, self).__init__()
         self.densenet = models.densenet121(pretrained=False)
-        self.densenet.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.densenet.classifier = nn.Linear(512, 10) 
+        self.densenet.fc = nn.Linear(512, 10) 
 
     def forward(self, x):
         return self.densenet(x)
 
-model = DenseNetMNIST().cuda()
+model = DenseNetCIFAR10().cuda()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-tracker = CarbonTracker(
-    epochs=10,
-    epochs_before_pred=-1,
-    monitor_epochs=-1,
-    interpretable=True,
-    log_dir="./densenet_mnist",
-    verbose=2
-)
+tracker = EmissionsTracker()
+tracker.start()
 start_time = time.time()
 
 for epoch in range(10):
-    tracker.epoch_start()
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         inputs, labels = data
@@ -54,43 +46,41 @@ for epoch in range(10):
         if i % 100 == 99:   
             print(f'[Epoch: {epoch + 1}, Batch: {i + 1}] loss: {running_loss / 100:.3f}')
             running_loss = 0.0
-    tracker.epoch_end()
 
 tracker.stop()
 training_time = time.time() - start_time
 
 print('Finished Training')
-correct = 0
-total = 0
+y_true = []
+y_pred = []
 
 with torch.no_grad():
     for data in testloader:
         images, labels = data
         images, labels = images.cuda(), labels.cuda()
         outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        _, predicted = torch.max(outputs, 1)
+        y_true.extend(labels.cpu().numpy())
+        y_pred.extend(predicted.cpu().numpy())
 
-accuracy = 100 * correct / total
-# Parse logs
-log_dir = "./densenet_mnist"
-logs = parser.parse_all_logs(log_dir=log_dir)
-
-# Initialize variables to handle missing data
-energy_kwh = 0.0
-co2_eq_g = 0.0
-
-first_log = logs[0]
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
 
 densenet_data = {
     "Model": "DenseNet",
-    "Dataset": "MNIST",
-    "Evaluation Framework": "carbontracker",
-    "Total Energy (kWh)": first_log.get("actual", {}).get("energy (kWh)", 0.0),
-    "Total CO2 Emissions (kgCO2e)": (first_log.get("actual", {}).get("co2eq (g)", 0.0)) / 1000,
+    "Dataset": "CIFAR10",
+    "Evaluation Framework": "codecarbon",
+    "Total Energy (kWh)": tracker.final_emissions_data.energy_consumed,
+    "Total CO2 Emissions (kgCO2e)": tracker.final_emissions_data.emissions,
+    "CPU Energy": tracker.final_emissions_data.cpu_energy,
+    "GPU Energy": tracker.final_emissions_data.gpu_energy,
     "Training Time (minutes)": training_time / 60,
-    "Final Accuracy (%)": accuracy,
+    "Accuracy": accuracy,
+    "Precision": precision,
+    "Recall": recall,
+    "F1": f1,
     "Number of Epochs": 10
 }
 

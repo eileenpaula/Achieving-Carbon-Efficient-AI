@@ -7,6 +7,7 @@ import torch.optim as optim
 from codecarbon import EmissionsTracker
 import time
 from openpyxl import load_workbook
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -50,19 +51,23 @@ tracker.stop()
 training_time = time.time() - start_time
 
 print('Finished Training')
-correct = 0
-total = 0
+y_true = []
+y_pred = []
 
 with torch.no_grad():
     for data in testloader:
         images, labels = data
         images, labels = images.cuda(), labels.cuda()
         outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        _, predicted = torch.max(outputs, 1)
+        y_true.extend(labels.cpu().numpy())
+        y_pred.extend(predicted.cpu().numpy())
 
-accuracy = 100 * correct / total
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
 resnet_data = {
     "Model": "ResNet",
     "Dataset": "CIFAR10",
@@ -72,7 +77,10 @@ resnet_data = {
     "CPU Energy": tracker.final_emissions_data.cpu_energy,
     "GPU Energy": tracker.final_emissions_data.gpu_energy,
     "Training Time (minutes)": training_time / 60,
-    "Final Accuracy (%)": accuracy,
+    "Accuracy": accuracy,
+    "Precision": precision,
+    "Recall": recall,
+    "F1": f1,
     "Number of Epochs": 10
 }
 
