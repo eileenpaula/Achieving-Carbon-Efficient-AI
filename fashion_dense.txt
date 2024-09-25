@@ -1,0 +1,88 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from carbontracker.tracker import CarbonTracker
+
+# Define the DenseNet Model for FashionMNIST
+class DenseNetFashionMNIST(nn.Module):
+    def __init__(self):
+        super(DenseNetFashionMNIST, self).__init__()
+        self.densenet = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=False)
+        self.densenet.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # Adjust for 1-channel grayscale
+        self.densenet.classifier = nn.Linear(1024, 10)  # FashionMNIST has 10 classes
+
+    def forward(self, x):
+        return self.densenet(x)
+
+# Set up transforms for FashionMNIST
+transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+# Load the FashionMNIST dataset
+trainset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True)
+
+testset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False)
+
+# Initialize model, optimizer, and loss function
+model = DenseNetFashionMNIST().cuda()
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+criterion = nn.CrossEntropyLoss()
+
+# Initialize CarbonTracker
+tracker = CarbonTracker(epochs=10)
+
+# Training loop
+for epoch in range(10):
+    tracker.epoch_start()  # Start CarbonTracker for the epoch
+    running_loss = 0.0
+    for i, data in enumerate(trainloader, 0):
+        inputs, labels = data
+        inputs, labels = inputs.cuda(), labels.cuda()
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        if i % 100 == 99:
+            print(f'[Epoch: {epoch + 1}, Batch: {i + 1}] loss: {running_loss / 100:.3f}')
+            running_loss = 0.0
+
+    tracker.epoch_end()  # End CarbonTracker for the epoch
+
+# Stop CarbonTracker after all epochs
+tracker.stop()
+
+# Evaluate the model and collect predictions
+y_true = []
+y_pred = []
+
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        images, labels = images.cuda(), labels.cuda()
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
+        y_true.extend(labels.cpu().numpy())  # Collect true labels
+        y_pred.extend(predicted.cpu().numpy())  # Collect predicted labels
+
+# Calculate metrics
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
