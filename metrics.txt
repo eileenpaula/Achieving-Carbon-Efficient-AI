@@ -1,0 +1,58 @@
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from carbontracker.tracker import CarbonTracker
+
+# Assuming your model, trainloader, testloader, optimizer, and criterion are already defined
+
+# Initialize CarbonTracker with the number of epochs
+tracker = CarbonTracker(epochs=10)
+
+# Training loop
+for epoch in range(10):
+    tracker.epoch_start()  # Mark the start of the epoch for tracking
+    running_loss = 0.0
+    for i, data in enumerate(trainloader, 0):
+        inputs, labels = data
+        inputs, labels = inputs.cuda(), labels.cuda()
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        if i % 100 == 99:
+            print(f'[Epoch: {epoch + 1}, Batch: {i + 1}] loss: {running_loss / 100:.3f}')
+            running_loss = 0.0
+
+    tracker.epoch_end()  # Mark the end of the epoch for tracking
+
+# Stop the tracker after all epochs
+tracker.stop()
+
+# Evaluate the model and collect predictions
+y_true = []
+y_pred = []
+
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        images, labels = images.cuda(), labels.cuda()
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
+        y_true.extend(labels.cpu().numpy())  # Collect true labels
+        y_pred.extend(predicted.cpu().numpy())  # Collect predicted labels
+
+# Calculate metrics
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
+print(f"Accuracy: {accuracy * 100:.2f}%")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
