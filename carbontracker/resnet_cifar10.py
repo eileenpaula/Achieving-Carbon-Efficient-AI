@@ -69,8 +69,8 @@ with torch.no_grad():
         images, labels = images.cuda(), labels.cuda()
         outputs = model(images)
         _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        y_true.extend(labels.cpu().numpy())
+        y_pred.extend(predicted.cpu().numpy())
 
 accuracy = accuracy_score(y_true, y_pred)
 precision = precision_score(y_true, y_pred, average='weighted')
