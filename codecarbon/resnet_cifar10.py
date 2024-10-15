@@ -9,8 +9,9 @@ import time
 from openpyxl import load_workbook, Workbook
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-wb = Workbook()
-wb.save("results.xlsx")
+if not os.path.exists("results.xlsx"):
+    wb = Workbook()
+    wb.save("results.xlsx")
 
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
