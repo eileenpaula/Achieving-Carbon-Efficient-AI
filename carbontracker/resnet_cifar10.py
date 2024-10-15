@@ -7,6 +7,7 @@ import torch.optim as optim
 from carbontracker.tracker import CarbonTracker
 from carbontracker import parser
 import time
+import os
 from openpyxl import load_workbook, Workbook
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
