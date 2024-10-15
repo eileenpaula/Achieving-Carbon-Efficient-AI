@@ -12,14 +12,14 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 transform = transforms.Compose([transforms.Resize(224), transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
 
 trainset = torchvision.datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 testset = torchvision.datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+testloader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False, num_workers=2)
 
 class ResNetFashionMNIST(nn.Module):
     def __init__(self):
         super(ResNetFashionMNIST, self).__init__()
-        self.resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=False)
+        self.resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
         self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.resnet.fc = nn.Linear(512, 10)
 
@@ -28,7 +28,7 @@ class ResNetFashionMNIST(nn.Module):
 
 model = ResNetFashionMNIST().cuda()
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 tracker = EmissionsTracker()
 tracker.start()
 start_time = time.time()
@@ -70,8 +70,8 @@ recall = recall_score(y_true, y_pred, average='weighted')
 f1 = f1_score(y_true, y_pred, average='weighted')
 
 resnet_data = {
-    "Model": "FashionResNet",
-    "Dataset": "MNIST",
+    "Model": "ResNet",
+    "Dataset": "FashionMNIST",
     "Evaluation Framework": "codecarbon",
     "Total Energy (kWh)": tracker.final_emissions_data.energy_consumed,
     "Total CO2 Emissions (kgCO2e)": tracker.final_emissions_data.emissions,
