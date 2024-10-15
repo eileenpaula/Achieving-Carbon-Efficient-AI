@@ -65,6 +65,7 @@ with torch.no_grad():
         y_pred.extend(predicted.cpu().numpy())
 
 accuracy = accuracy_score(y_true, y_pred)
+print(f'Accuracy: {accuracy:.3f}')
 precision = precision_score(y_true, y_pred, average='weighted')
 recall = recall_score(y_true, y_pred, average='weighted')
 f1 = f1_score(y_true, y_pred, average='weighted')

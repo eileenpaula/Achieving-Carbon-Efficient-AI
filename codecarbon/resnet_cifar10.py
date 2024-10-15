@@ -47,7 +47,7 @@ for epoch in range(10):
         optimizer.step()
         running_loss += loss.item()
         if i % 100 == 99:   
-            print(f'[Epoch: {epoch + 1}, Batch: {i + 1}] loss: {running_loss / 100:.3f}')
+            print(f'[Epoch: {epoch + 1}] loss: {running_loss / 100:.3f}')
             running_loss = 0.0
 
 tracker.stop()
@@ -67,7 +67,6 @@ with torch.no_grad():
         y_pred.extend(predicted.cpu().numpy())
 
 accuracy = accuracy_score(y_true, y_pred)
-print(f'accuracy: {accuracy}')
 precision = precision_score(y_true, y_pred, average='weighted')
 recall = recall_score(y_true, y_pred, average='weighted')
 f1 = f1_score(y_true, y_pred, average='weighted')
