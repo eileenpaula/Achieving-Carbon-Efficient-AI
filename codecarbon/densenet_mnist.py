@@ -12,9 +12,9 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 transform = transforms.Compose([transforms.Resize(224), transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
 
 trainset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)                                               
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
 testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False, num_workers=2)
+testloader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
 
 class DenseNetMNIST(nn.Module):
     def __init__(self):
@@ -28,7 +28,7 @@ class DenseNetMNIST(nn.Module):
 
 model = DenseNetMNIST().cuda()
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 tracker = EmissionsTracker()
 tracker.start()
 start_time = time.time()
@@ -45,7 +45,7 @@ for epoch in range(10):
         optimizer.step()
         running_loss += loss.item()
         if i % 100 == 99:   
-            print(f'[Epoch: {epoch + 1}, Batch: {i + 1}] loss: {running_loss / 100:.3f}')
+            print(f'[Epoch: {epoch + 1}] loss: {running_loss / 100:.3f}')
             running_loss = 0.0
 
 tracker.stop()
@@ -58,7 +58,7 @@ y_pred = []
 with torch.no_grad():
     for data in testloader:
         images, labels = data
-        images, labels = inputs.cuda(), labels.cuda()
+        images, labels = images.cuda(), labels.cuda()
         outputs = model(images)
         _, predicted = torch.max(outputs, 1)
         y_true.extend(labels.cpu().numpy())
