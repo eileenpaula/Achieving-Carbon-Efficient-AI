@@ -1,7 +1,15 @@
 torch
+transformers
 torchvision
 codecarbon
-carbontracker
-energymeter
+datasets
+tqdm
 scikit-learn
 openpyxl
+openvino
+nncf
+numpy
+matplotlib
+pandas
+numpy
+adjustText
